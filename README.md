@@ -5,7 +5,7 @@ EXAMPLE
 
 Allow to embed ipython/bpython or the builtin python shell in your projects
 
-[Imgur](http://i.imgur.com/ey1vF8O.png)
+![Example](http://i.imgur.com/ey1vF8O.png)
 
 USAGE
 =====
