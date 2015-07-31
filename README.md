@@ -10,9 +10,9 @@ Allow to embed ipython/bpython or the builtin python shell in your projects
 USAGE
 =====
 
-``python
+```python
 import pry; pry()
-``
+```
 
 INSTALL
 =======
