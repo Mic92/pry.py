@@ -2,7 +2,6 @@ import code
 import inspect
 import sys
 import traceback
-from contextlib import contextmanager
 from bdb import BdbQuit
 
 BdbQuit_excepthook = None
