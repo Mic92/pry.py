@@ -65,7 +65,7 @@ class Pry():
     def __exit__(self, type, value, tb):
         self.wrap_sys_excepthook()
         while tb.tb_next is not None:
-            context, local = self.get_context(tb.tb_frame)
+            context = self.get_context(tb.tb_frame)[0]
             self.module.sys.stderr.write(context)
             tb = tb.tb_next
         self.module.sys.stderr.write("%s: %s\n" % (type.__name__, str(value)))
@@ -110,10 +110,11 @@ class Pry():
             pointer = "-->" if i == line_number else "   "
             banner += "{} {}: {}\n".format(pointer, i, line)
             i += 1
-        return banner, frame.f_locals
+        return banner, frame.f_locals, frame.f_globals
 
-    def shell(self, context, local):
+    def shell(self, context, local, global_):
         module = self.module
+        globals=global_
         if self.module.has_bpython:
             module.bpython.embed(local, banner=context)
         if self.module.has_ipython:
@@ -126,8 +127,8 @@ class Pry():
     def __call__(self, frame=None):
         if frame is None:
             frame = self.module.inspect.currentframe()
-        context, local = self.get_context(frame)
-        self.shell(context, local)
+        context, local, global_ = self.get_context(frame)
+        self.shell(context, local, global_)
 
 
 # hack for convenient access
