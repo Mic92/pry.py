@@ -2,6 +2,9 @@ import code
 import inspect
 import sys
 import traceback
+import tempfile
+import re
+import shutil
 from bdb import BdbQuit
 
 try:
@@ -31,8 +34,7 @@ except ImportError:
 
             @magics_class
             class MyMagics(Magics):
-                @line_magic("editfile")
-                def editfile(self, query):
+                def get_invocation_callsite(self):
                     outer = inspect.getouterframes(inspect.currentframe())
                     found_pry = False
                     for frame in outer:
@@ -41,8 +43,28 @@ except ImportError:
                                 found_pry = True
                         elif found_pry:
                             break
-                    IPython.get_ipython().hooks.editor(frame.filename, linenum=frame.lineno)
+                    return frame
 
+                @line_magic("editfile")
+                def editfile(self, query):
+                    frame = self.get_invocation_callsite()
+                    IPython.get_ipython().hooks.editor(
+                        frame.filename, linenum=frame.lineno)
+
+                @line_magic("removepry")
+                def editfile(self, query):
+                    frame = self.get_invocation_callsite()
+                    with open(frame.filename) as src, \
+                            tempfile.NamedTemporaryFile(mode='w') as dst:
+                        for i, line in enumerate(src):
+                            if (i + 1) == frame.lineno:
+                                line = re.sub(r'(import pry;)?\s*pry\(\)', "", line)
+                                if line.strip() == "":
+                                    continue
+                            dst.write(line)
+                        dst.flush()
+                        src.close()
+                        shutil.copyfile(dst.name, frame.filename)
             self.register_magics(MyMagics)
 
         IPython.terminal.embed.InteractiveShellEmbed.__init__ = new_init
