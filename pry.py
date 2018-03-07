@@ -18,9 +18,35 @@ except ImportError:
     try:
         import IPython
         from IPython.core.debugger import BdbQuit_excepthook
-        from IPython.terminal.interactiveshell import TerminalInteractiveShell
-        # super hacky, but nobody got time for this!
-        TerminalInteractiveShell.confirm_exit = False
+        from IPython.terminal.ipapp import load_default_config
+        from IPython.core.magic import (magics_class, line_magic, Magics)
+
+        ipython_config = load_default_config()
+        ipython_config.TerminalInteractiveShell.confirm_exit = False
+
+        old_init = IPython.terminal.embed.InteractiveShellEmbed.__init__
+
+        def new_init(self, *k, **kw):
+            old_init(self, *k, **kw)
+
+            @magics_class
+            class MyMagics(Magics):
+                @line_magic("editfile")
+                def editfile(self, query):
+                    outer = inspect.getouterframes(inspect.currentframe())
+                    found_pry = False
+                    for frame in outer:
+                        if frame.filename.endswith("pry.py"):
+                            if frame.function in ("__call__", "__exit__"):
+                                found_pry = True
+                        elif found_pry:
+                            break
+                    IPython.get_ipython().hooks.editor(frame.filename, linenum=frame.lineno)
+
+            self.register_magics(MyMagics)
+
+        IPython.terminal.embed.InteractiveShellEmbed.__init__ = new_init
+
         has_ipython = True
     except ImportError:
         has_ipython = False
@@ -128,16 +154,21 @@ class Pry():
         m.termios.tcsetattr(termios_fd, termios.TCSADRAIN, termios_echo)
 
     def shell(self, context, local, global_):
-        module = self.module
-        globals = global_
-        if self.module.has_bpython:
-            module.bpython.embed(local, banner=context)
-        if self.module.has_ipython:
-            module.IPython.embed(user_ns=local, banner1=context)
+        m = self.module
+        if m.has_bpython:
+            globals = global_
+            m.bpython.embed(local, banner=context)
+        if m.has_ipython:
+            m.IPython.embed(
+                user_ns=local,
+                global_ns=global_,
+                banner1=context,
+                config=m.ipython_config)
         else:
-            if self.module.has_readline:
-                module.readline.parse_and_bind("tab: complete")
-            module.code.interact(context, local=local)
+            if m.has_readline:
+                m.readline.parse_and_bind("tab: complete")
+            globals = global_
+            m.code.interact(context, local=local)
 
     def __call__(self, frame=None):
         if frame is None:
