@@ -31,41 +31,70 @@ except ImportError:
 
         def new_init(self, *k, **kw):
             old_init(self, *k, **kw)
+            from pry import get_context
 
             @magics_class
             class MyMagics(Magics):
-                def get_invocation_callsite(self):
-                    outer = inspect.getouterframes(inspect.currentframe())
+                def __init__(self, shell):
+                    # You must call the parent constructor
+                    super(MyMagics, self).__init__(shell)
+
+                    self.frames = inspect.getouterframes(
+                        inspect.currentframe())
                     found_pry = False
-                    for frame in outer:
+                    for (i, frame) in enumerate(self.frames):
                         if frame.filename.endswith("pry.py"):
                             if frame.function in ("__call__", "__exit__"):
                                 found_pry = True
                         elif found_pry:
                             break
-                    return frame
+                    self.frame_offset = i
+                    self.calling_frame = frame
 
                 @line_magic("editfile")
                 def editfile(self, query):
-                    frame = self.get_invocation_callsite()
+                    f = self.frames[self.frame_offset]
                     IPython.get_ipython().hooks.editor(
-                        frame.filename, linenum=frame.lineno)
+                        f.filename, linenum=f.lineno)
+
+                def update_context(self):
+                    f = self.frames[self.frame_offset].frame
+                    context, local, global_ = get_context(f)
+                    sys.stderr.write(context)
+                    # hacky
+                    self.shell.user_ns.update(local)
+                    self.shell.user_module.__dict__ = global_
+
+                @line_magic("up")
+                def up(self, query):
+                    self.frame_offset += 1
+                    self.frame_offset = min(self.frame_offset,
+                                            len(self.frames) - 1)
+                    self.update_context()
+
+                @line_magic("down")
+                def down(self, query):
+                    self.frame_offset -= 1
+                    self.frame_offset = max(self.frame_offset, 0)
+                    self.update_context()
 
                 @line_magic("removepry")
-                def editfile(self, query):
-                    frame = self.get_invocation_callsite()
-                    with open(frame.filename) as src, \
+                def removepry(self, query):
+                    f = self.calling_frame
+                    with open(f.filename) as src, \
                             tempfile.NamedTemporaryFile(mode='w') as dst:
                         for i, line in enumerate(src):
-                            if (i + 1) == frame.lineno:
-                                line = re.sub(r'(import pry;)?\s*pry\(\)', "", line)
+                            if (i + 1) == f.lineno:
+                                line = re.sub(r'(import pry;)?\s*pry\(\)', "",
+                                              line)
                                 if line.strip() == "":
                                     continue
                             dst.write(line)
                         dst.flush()
                         src.close()
-                        shutil.copyfile(dst.name, frame.filename)
-            self.register_magics(MyMagics)
+                        shutil.copyfile(dst.name, f.filename)
+
+            self.register_magics(MyMagics(self))
 
         IPython.terminal.embed.InteractiveShellEmbed.__init__ = new_init
 
