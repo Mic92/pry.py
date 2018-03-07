@@ -4,6 +4,11 @@ import sys
 import traceback
 from bdb import BdbQuit
 
+try:
+    import termios
+except ImportError:
+    termios = None
+
 BdbQuit_excepthook = None
 try:
     import bpython
@@ -111,9 +116,20 @@ class Pry():
             i += 1
         return banner, frame.f_locals, frame.f_globals
 
+    def fix_tty(self):
+        m = self.module
+        if m.termios is None:
+            return
+        # Sometimes when you do something funky, you may lose your terminal
+        # echo. This should restore it when spawning new pdb.
+        termios_fd = m.sys.stdin.fileno()
+        termios_echo = m.termios.tcgetattr(termios_fd)
+        termios_echo[3] = termios_echo[3] | m.termios.ECHO
+        m.termios.tcsetattr(termios_fd, termios.TCSADRAIN, termios_echo)
+
     def shell(self, context, local, global_):
         module = self.module
-        globals=global_
+        globals = global_
         if self.module.has_bpython:
             module.bpython.embed(local, banner=context)
         if self.module.has_ipython:
@@ -127,6 +143,7 @@ class Pry():
         if frame is None:
             frame = self.module.inspect.currentframe()
         context, local, global_ = self.get_context(frame)
+        self.fix_tty()
         self.shell(context, local, global_)
 
 
