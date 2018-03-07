@@ -53,6 +53,9 @@ except ImportError:
 
                 @line_magic("editfile")
                 def editfile(self, query):
+                    """
+                    Open current breakpoint in editor.
+                    """
                     f = self.frames[self.frame_offset]
                     IPython.get_ipython().hooks.editor(
                         f.filename, linenum=f.lineno)
@@ -67,6 +70,9 @@ except ImportError:
 
                 @line_magic("up")
                 def up(self, query):
+                    """
+                    Get from call frame up.
+                    """
                     self.frame_offset += 1
                     self.frame_offset = min(self.frame_offset,
                                             len(self.frames) - 1)
@@ -74,12 +80,18 @@ except ImportError:
 
                 @line_magic("down")
                 def down(self, query):
+                    """
+                    Get from call frame down.
+                    """
                     self.frame_offset -= 1
                     self.frame_offset = max(self.frame_offset, 0)
                     self.update_context()
 
                 @line_magic("removepry")
                 def removepry(self, query):
+                    """
+                    Remove pry call at current breakpoint.
+                    """
                     f = self.calling_frame
                     with open(f.filename) as src, \
                             tempfile.NamedTemporaryFile(mode='w') as dst:
