@@ -21,7 +21,6 @@ except ImportError:
     has_pygments = False
     pass
 
-
 BdbQuit_excepthook = None
 try:
     import bpython
@@ -44,15 +43,34 @@ except ImportError:
             old_init(self, *k, **kw)
             from pry import get_context, highlight
 
+            class Frame():
+                """
+                Abstraction around old python traceback api
+                """
+                def __init__(self, *args):
+                    self.frame = args[0]
+                    self.filename = args[1]
+                    self.lineno = args[2]
+                    self.function = args[3]
+                    self.lines = args[4]
+                    self.index = args[5]
+
+            # XXX also use this in pry wrapper
+            def inspect_frames():
+                frames = []
+                raw_frames = inspect.getouterframes(inspect.currentframe())
+                for raw_frame in raw_frames:
+                    frames.append(Frame(*raw_frame))
+                return frames
+
             @magics_class
             class MyMagics(Magics):
                 def __init__(self, shell):
                     # You must call the parent constructor
                     super(MyMagics, self).__init__(shell)
 
-                    self.frames = inspect.getouterframes(
-                        inspect.currentframe())
                     found_pry = False
+                    self.frames = inspect_frames()
                     for (i, frame) in enumerate(self.frames):
                         if frame.filename.endswith("pry.py"):
                             if frame.function in ("__call__", "__exit__"):
