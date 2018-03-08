@@ -196,18 +196,15 @@ class Pry():
         source = p.format(tokens, self.formatter)
         return source.split("\n")
 
-    def print_traceback(self, tb):
-        while tb.tb_next is not None:
-            context = self.get_context(tb.tb_frame)[0]
-            self.module.sys.stderr.write(context)
-            tb = tb.tb_next
-
     def __enter__(self):
         pass
 
     def __exit__(self, type, value, tb):
         self.wrap_sys_excepthook()
-        self.print_traceback(tb)
+        while tb.tb_next is not None:
+            context = self.get_context(tb.tb_frame)[0]
+            self.module.sys.stderr.write(context)
+            tb = tb.tb_next
         self.module.sys.stderr.write("%s: %s\n" % (type.__name__, str(value)))
         self(tb.tb_frame)
 
