@@ -12,6 +12,16 @@ try:
 except ImportError:
     termios = None
 
+try:
+    import pygments
+    import pygments.lexers
+    import pygments.formatters
+    has_pygments = True
+except ImportError:
+    has_pygments = False
+    pass
+
+
 BdbQuit_excepthook = None
 try:
     import bpython
@@ -21,6 +31,7 @@ except ImportError:
     try:
         import IPython
         from IPython.core.debugger import BdbQuit_excepthook
+        from IPython.core import page
         from IPython.terminal.ipapp import load_default_config
         from IPython.core.magic import (magics_class, line_magic, Magics)
 
@@ -31,7 +42,7 @@ except ImportError:
 
         def new_init(self, *k, **kw):
             old_init(self, *k, **kw)
-            from pry import get_context
+            from pry import get_context, highlight
 
             @magics_class
             class MyMagics(Magics):
@@ -59,6 +70,30 @@ except ImportError:
                     f = self.frames[self.frame_offset]
                     IPython.get_ipython().hooks.editor(
                         f.filename, linenum=f.lineno)
+
+                @line_magic("where")
+                def where(self, query):
+                    """
+                    Show backtrace
+                    """
+                    context = []
+                    for f in self.frames[self.frame_offset:]:
+                        context.append(get_context(f.frame)[0])
+                    page.page("".join(context))
+
+                @line_magic("showsource")
+                def showsource(self, query):
+                    """
+                    Show source of object
+                    """
+                    f = self.frames[self.frame_offset].frame
+                    obj = f.f_locals.get(query, f.f_globals.get(query, None))
+                    if obj is None:
+                        return "Not found: %s" % query
+                    s = inspect.getsource(obj)
+                    if has_pygments:
+                        s = "\n".join(highlight(s.split("\n")))
+                    page.page(s)
 
                 def update_context(self):
                     f = self.frames[self.frame_offset].frame
@@ -116,15 +151,6 @@ except ImportError:
         pass
 
 try:
-    import pygments
-    import pygments.lexers
-    import pygments.formatters
-    has_pygments = True
-except ImportError:
-    has_pygments = False
-    pass
-
-try:
     import readline
     has_readline = True
 except ImportError:
@@ -152,15 +178,18 @@ class Pry():
         source = p.format(tokens, self.formatter)
         return source.split("\n")
 
+    def print_traceback(self, tb):
+        while tb.tb_next is not None:
+            context = self.get_context(tb.tb_frame)[0]
+            self.module.sys.stderr.write(context)
+            tb = tb.tb_next
+
     def __enter__(self):
         pass
 
     def __exit__(self, type, value, tb):
         self.wrap_sys_excepthook()
-        while tb.tb_next is not None:
-            context = self.get_context(tb.tb_frame)[0]
-            self.module.sys.stderr.write(context)
-            tb = tb.tb_next
+        self.print_traceback(tb)
         self.module.sys.stderr.write("%s: %s\n" % (type.__name__, str(value)))
         self(tb.tb_frame)
 
