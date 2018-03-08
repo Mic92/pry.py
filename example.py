@@ -14,6 +14,8 @@ def baz():
 def bar():
     b = 1
     baz()
+    with pry():
+         raise Exception("foo")
 
 
 def foo():
@@ -28,5 +30,3 @@ def main():
 
 main()
 
-with pry():
-    raise Exception("foo")

@@ -39,38 +39,41 @@ except ImportError:
 
         old_init = IPython.terminal.embed.InteractiveShellEmbed.__init__
 
+        # XXX also use this in pry wrapper
+        class Frame():
+            """
+            Abstraction around old python traceback api
+            """
+            def __init__(self, *args):
+                self.frame = args[0]
+                self.filename = args[1]
+                self.lineno = args[2]
+                self.function = args[3]
+                self.lines = args[4]
+                self.index = args[5]
+
+        # XXX also use this in pry wrapper
+        def inspect_frames(frame):
+            frames = []
+            raw_frames = inspect.getouterframes(frame)
+            for raw_frame in raw_frames:
+                frames.append(Frame(*raw_frame))
+            return frames
+
         def new_init(self, *k, **kw):
+            frame = kw.pop("frame", None)
             old_init(self, *k, **kw)
             from pry import get_context, highlight
 
-            class Frame():
-                """
-                Abstraction around old python traceback api
-                """
-                def __init__(self, *args):
-                    self.frame = args[0]
-                    self.filename = args[1]
-                    self.lineno = args[2]
-                    self.function = args[3]
-                    self.lines = args[4]
-                    self.index = args[5]
-
-            # XXX also use this in pry wrapper
-            def inspect_frames():
-                frames = []
-                raw_frames = inspect.getouterframes(inspect.currentframe())
-                for raw_frame in raw_frames:
-                    frames.append(Frame(*raw_frame))
-                return frames
-
             @magics_class
             class MyMagics(Magics):
-                def __init__(self, shell):
+                def __init__(self, shell, frame):
                     # You must call the parent constructor
                     super(MyMagics, self).__init__(shell)
 
                     found_pry = False
-                    self.frames = inspect_frames()
+
+                    self.frames = inspect_frames(frame)
                     for (i, frame) in enumerate(self.frames):
                         if frame.filename.endswith("pry.py"):
                             if frame.function in ("__call__", "__exit__"):
@@ -159,7 +162,7 @@ except ImportError:
                         src.close()
                         shutil.copyfile(dst.name, f.filename)
 
-            self.register_magics(MyMagics(self))
+            self.register_magics(MyMagics(self, frame))
 
         IPython.terminal.embed.InteractiveShellEmbed.__init__ = new_init
 
@@ -262,7 +265,7 @@ class Pry():
         termios_echo[3] = termios_echo[3] | m.termios.ECHO
         m.termios.tcsetattr(termios_fd, termios.TCSADRAIN, termios_echo)
 
-    def shell(self, context, local, global_):
+    def shell(self, context, local, global_, frame):
         m = self.module
         if m.has_bpython:
             globals = global_
@@ -272,7 +275,8 @@ class Pry():
                 user_ns=local,
                 global_ns=global_,
                 banner1=context,
-                config=m.ipython_config)
+                config=m.ipython_config,
+                frame=frame)
         else:
             if m.has_readline:
                 m.readline.parse_and_bind("tab: complete")
@@ -284,7 +288,7 @@ class Pry():
             frame = self.module.inspect.currentframe()
         context, local, global_ = self.get_context(frame)
         self.fix_tty()
-        self.shell(context, local, global_)
+        self.shell(context, local, global_, frame)
 
 
 # hack for convenient access
