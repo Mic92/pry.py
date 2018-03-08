@@ -201,6 +201,8 @@ class Pry():
 
     def __exit__(self, type, value, tb):
         self.wrap_sys_excepthook()
+        if tb is None:
+            return
         while tb.tb_next is not None:
             context = self.get_context(tb.tb_frame)[0]
             self.module.sys.stderr.write(context)
