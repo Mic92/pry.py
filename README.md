@@ -1,20 +1,30 @@
-pry.py - an interactive drop in REPL for python
+# pry.py - an interactive drop in REPL for python
 
-EXAMPLE
-=======
+## EXAMPLE
 
 Allow to embed ipython/bpython or the builtin python shell in your projects
 
 ![Example](http://i.imgur.com/ey1vF8O.png)
 
-USAGE
-=====
+## FEATURES
+
+- works with python2.7/python3
+- optional syntax highlighting (requires pygments)
+- auto completion
+- In IPython also the following magics (commands) are defined:
+  - `up/down`: Navigate in the call stack up/down
+  - `where`: Show a backtrace of the current breakpoint
+  - `removepry`: Remove current breakpoint from file
+  - `showsource`: show python source of object
+  - `editfile`: open editor at current breakpoint
+
+## USAGE
 
 ```python
 import pry; pry()
 ```
 
-Debug programs when exceptions are thrown:
+Spawn a REPL when exceptions are thrown:
 
 ```python
 import pry
@@ -24,8 +34,7 @@ with pry:
     faulty()
 ```
 
-INSTALL
-=======
+## INSTALL
 
 ```
 $ curl https://raw.githubusercontent.com/Mic92/pry.py/master/pry.py > pry.py
