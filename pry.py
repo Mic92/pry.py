@@ -5,6 +5,8 @@ import sys
 import tempfile
 import re
 import shutil
+import struct
+import fcntl
 from bdb import BdbQuit
 
 try:
@@ -42,7 +44,7 @@ except ImportError:
         def new_init(self, *k, **kw):
             frames = kw.pop("frames", None)
             old_init(self, *k, **kw)
-            from pry import get_context, highlight
+            from pry import get_context, highlight, terminal_size
 
             @magics_class
             class MyMagics(Magics):
@@ -58,12 +60,28 @@ except ImportError:
                 def active_frame(self):
                     return self.frames[self.frame_offset]
 
+                @line_magic("ls")
+                def ls(self, query):
+                    """
+                    Show local variables/methods
+                    """
+                    print("local variables:", file=sys.stderr)
+                    width = terminal_size()[0]
+                    line = " "
+                    lines = []
+                    for name in self.active_frame.locals.keys():
+                        if line + name > width:
+                            lines.append(line)
+                            line = " "
+                        line += " %s" % name
+                    page.page("\n".join(lines) + line)
+
                 @line_magic("editfile")
                 def editfile(self, query):
                     """
-                    Open current breakpoint in editor.
+                    open current breakpoint in editor.
                     """
-                    IPython.get_ipython().hooks.editor(
+                    ipython.get_ipython().hooks.editor(
                         self.active_frame.filename,
                         linenum=self.active_frame.lineno)
 
@@ -260,25 +278,33 @@ class Pry():
         termios_echo[3] = termios_echo[3] | m.termios.ECHO
         m.termios.tcsetattr(termios_fd, termios.TCSADRAIN, termios_echo)
 
+    def terminal_size(self):
+        m = self.module
+        if m.termios is None:
+            return 80, 24
+        args = m.struct.pack('HHHH', 0, 0, 0, 0)
+        res = m.fcntl.ioctl(0, m.termios.TIOCGWINSZ, args)
+        h, w, hp, wp = m.struct.unpack('HHHH', res)
+        return w, h
+
     def shell(self, context, frames):
         active_frame = frames[0]
         m = self.module
         if m.has_bpython:
-            globals = active_frame.globals
-            m.bpython.embed(active_frame.locals, banner=context)
+            globals().update(active_frame.globals)
+            m.bpython.embed(active_frame.locals.copy(), banner=context)
         if m.has_ipython:
             m.IPython.embed(
-                user_ns=active_frame.locals,
-                global_ns=active_frame.globals,
+                user_ns=active_frame.locals.copy(),
+                global_ns=active_frame.globals.copy(),
                 banner1=context,
                 config=m.ipython_config,
                 frames=frames)
         else:
             if m.has_readline:
                 m.readline.parse_and_bind("tab: complete")
-            globals = active_frame.globals  # noqa: F841
-            # import pdb; pdb.set_trace()
-            m.code.interact(context, local=active_frame.locals)
+            globals().update(active_frame.globals)
+            m.code.interact(context, local=active_frame.locals.copy())
 
     def __call__(self, frames=None):
         if frames is None:
