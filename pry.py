@@ -70,7 +70,7 @@ except ImportError:
                     line = " "
                     lines = []
                     for name in self.active_frame.locals.keys():
-                        if line + name > width:
+                        if len(line + name) > width:
                             lines.append(line)
                             line = " "
                         line += " %s" % name
