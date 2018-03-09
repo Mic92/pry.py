@@ -1,7 +1,7 @@
+from __future__ import print_function
 import code
 import inspect
 import sys
-import traceback
 import tempfile
 import re
 import shutil
@@ -39,58 +39,33 @@ except ImportError:
 
         old_init = IPython.terminal.embed.InteractiveShellEmbed.__init__
 
-        # XXX also use this in pry wrapper
-        class Frame():
-            """
-            Abstraction around old python traceback api
-            """
-            def __init__(self, *args):
-                self.frame = args[0]
-                self.filename = args[1]
-                self.lineno = args[2]
-                self.function = args[3]
-                self.lines = args[4]
-                self.index = args[5]
-
-        # XXX also use this in pry wrapper
-        def inspect_frames(frame):
-            frames = []
-            raw_frames = inspect.getouterframes(frame)
-            for raw_frame in raw_frames:
-                frames.append(Frame(*raw_frame))
-            return frames
-
         def new_init(self, *k, **kw):
-            frame = kw.pop("frame", None)
+            frames = kw.pop("frames", None)
             old_init(self, *k, **kw)
             from pry import get_context, highlight
 
             @magics_class
             class MyMagics(Magics):
-                def __init__(self, shell, frame):
+                def __init__(self, shell, frames):
                     # You must call the parent constructor
                     super(MyMagics, self).__init__(shell)
 
-                    found_pry = False
+                    self.frame_offset = 0
+                    self.frames = frames
+                    self.calling_frame = frames[0]
 
-                    self.frames = inspect_frames(frame)
-                    for (i, frame) in enumerate(self.frames):
-                        if frame.filename.endswith("pry.py"):
-                            if frame.function in ("__call__", "__exit__"):
-                                found_pry = True
-                        elif found_pry:
-                            break
-                    self.frame_offset = i
-                    self.calling_frame = frame
+                @property
+                def active_frame(self):
+                    return self.frames[self.frame_offset]
 
                 @line_magic("editfile")
                 def editfile(self, query):
                     """
                     Open current breakpoint in editor.
                     """
-                    f = self.frames[self.frame_offset]
                     IPython.get_ipython().hooks.editor(
-                        f.filename, linenum=f.lineno)
+                        self.active_frame.filename,
+                        linenum=self.active_frame.lineno)
 
                 @line_magic("where")
                 def where(self, query):
@@ -98,8 +73,8 @@ except ImportError:
                     Show backtrace
                     """
                     context = []
-                    for f in self.frames[self.frame_offset:]:
-                        context.append(get_context(f.frame)[0])
+                    for f in reversed(self.frames[self.frame_offset:]):
+                        context.append(get_context(f))
                     page.page("".join(context))
 
                 @line_magic("showsource")
@@ -107,22 +82,25 @@ except ImportError:
                     """
                     Show source of object
                     """
-                    f = self.frames[self.frame_offset].frame
-                    obj = f.f_locals.get(query, f.f_globals.get(query, None))
+                    obj = self.active_frame.locals.get(
+                        query, self.active_frame.globals.get(query, None))
                     if obj is None:
                         return "Not found: %s" % query
-                    s = inspect.getsource(obj)
+                    try:
+                        s = inspect.getsource(obj)
+                    except TypeError as f:
+                        print("%s" % f, file=sys.stderr)
+                        return
+
                     if has_pygments:
                         s = "\n".join(highlight(s.split("\n")))
                     page.page(s)
 
                 def update_context(self):
-                    f = self.frames[self.frame_offset].frame
-                    context, local, global_ = get_context(f)
-                    sys.stderr.write(context)
+                    print(get_context(self.active_frame), file=sys.stderr)
                     # hacky
-                    self.shell.user_ns.update(local)
-                    self.shell.user_module.__dict__ = global_
+                    self.shell.user_ns.update(self.active_frame.locals)
+                    self.shell.user_module.__dict__ = self.active_frame.globals
 
                 @line_magic("up")
                 def up(self, query):
@@ -162,7 +140,7 @@ except ImportError:
                         src.close()
                         shutil.copyfile(dst.name, f.filename)
 
-            self.register_magics(MyMagics(self, frame))
+            self.register_magics(MyMagics(self, frames))
 
         IPython.terminal.embed.InteractiveShellEmbed.__init__ = new_init
 
@@ -181,11 +159,33 @@ else:
     import rlcompleter
 
 
+class Frame():
+    """
+    Abstraction around old python traceback api
+    """
+
+    def __init__(self, *args):
+        self.frame = args[0]
+        self.filename = args[1]
+        self.lineno = args[2]
+        self.function = args[3]
+        self.lines = args[4]
+        self.index = args[5]
+        self.locals = self.frame.f_locals
+        self.globals = self.frame.f_globals
+
+
 class Pry():
     def __init__(self, module):
         self.module = module
         self.lexer = None
         self.formatter = None
+
+    def wrap_raw_frames(self, raw_frames):
+        frames = []
+        for raw_frame in raw_frames:
+            frames.append(Frame(*raw_frame))
+        return frames
 
     def highlight(self, lines):
         if not self.module.has_pygments:
@@ -207,11 +207,10 @@ class Pry():
         if tb is None:
             return
         while tb.tb_next is not None:
-            context = self.get_context(tb.tb_frame)[0]
-            self.module.sys.stderr.write(context)
+            print(self.get_context(tb.tb_frame), file=sys.stderr)
             tb = tb.tb_next
-        self.module.sys.stderr.write("%s: %s\n" % (type.__name__, str(value)))
-        self(tb.tb_frame)
+        print("%s: %s\n" % (type.__name__, str(value)), file=sys.stderr)
+        self(self.wrap_raw_frames(self.module.inspect.getinnerframes(tb)))
 
     def wrap_sys_excepthook(self):
         m = self.module
@@ -223,16 +222,12 @@ class Pry():
             m.BdbQuit_excepthook.excepthook_ori = m.sys.excepthook
             m.sys.excepthook = m.BdbQuit_excepthook
 
-    def get_context(self, currentframe):
-        frames = self.module.inspect.getouterframes(currentframe)
-        if len(frames) > 1:
-            frames = frames[1:]
-        frame, filename, line_number, function_name, lines, index = frames[0]
-        before = max(line_number - 6, 0)
-        after = line_number + 4
+    def get_context(self, frame, unwind=True):
+        before = max(frame.lineno - 6, 0)
+        after = frame.lineno + 4
         context = []
         try:
-            f = open(filename)
+            f = open(frame.filename)
 
             for i, line in enumerate(f):
                 if i >= before:
@@ -241,18 +236,18 @@ class Pry():
                     break
             f.close()
         except IOError:
-            context = lines
-        banner = "From: {} @ line {} :\n".format(filename, line_number)
-        i = max(line_number - 5, 0)
+            context = frame.lines
+        banner = "From: {} @ line {} :\n".format(frame.filename, frame.lineno)
+        i = max(frame.lineno - 5, 0)
 
         if self.module.has_pygments and not self.module.has_bpython:
             context = self.highlight(context)
 
         for line in context:
-            pointer = "-->" if i == line_number else "   "
+            pointer = "-->" if i == frame.lineno else "   "
             banner += "{} {}: {}\n".format(pointer, i, line)
             i += 1
-        return banner, frame.f_locals, frame.f_globals
+        return banner
 
     def fix_tty(self):
         m = self.module
@@ -265,30 +260,37 @@ class Pry():
         termios_echo[3] = termios_echo[3] | m.termios.ECHO
         m.termios.tcsetattr(termios_fd, termios.TCSADRAIN, termios_echo)
 
-    def shell(self, context, local, global_, frame):
+    def shell(self, context, frames):
+        active_frame = frames[0]
         m = self.module
         if m.has_bpython:
-            globals = global_
-            m.bpython.embed(local, banner=context)
+            globals = active_frame.globals
+            m.bpython.embed(active_frame.locals, banner=context)
         if m.has_ipython:
             m.IPython.embed(
-                user_ns=local,
-                global_ns=global_,
+                user_ns=active_frame.locals,
+                global_ns=active_frame.globals,
                 banner1=context,
                 config=m.ipython_config,
-                frame=frame)
+                frames=frames)
         else:
             if m.has_readline:
                 m.readline.parse_and_bind("tab: complete")
-            globals = global_
-            m.code.interact(context, local=local)
+            globals = active_frame.globals  # noqa: F841
+            # import pdb; pdb.set_trace()
+            m.code.interact(context, local=active_frame.locals)
 
-    def __call__(self, frame=None):
-        if frame is None:
-            frame = self.module.inspect.currentframe()
-        context, local, global_ = self.get_context(frame)
+    def __call__(self, frames=None):
+        if frames is None:
+            frames = self.module.inspect.getouterframes(
+                self.module.inspect.currentframe())
+            if len(frames) > 1:
+                frames = frames[1:]
+            frames = self.wrap_raw_frames(frames)
+
+        context = self.get_context(frames[0])
         self.fix_tty()
-        self.shell(context, local, global_, frame)
+        self.shell(context, frames)
 
 
 # hack for convenient access
