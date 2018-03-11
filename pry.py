@@ -224,11 +224,11 @@ class Pry():
         self.wrap_sys_excepthook()
         if tb is None:
             return
-        while tb.tb_next is not None:
-            print(self.get_context(tb.tb_frame), file=sys.stderr)
-            tb = tb.tb_next
+        frames = self.wrap_raw_frames(self.module.inspect.getinnerframes(tb))
+        for frame in frames:
+            print(self.get_context(frame), file=sys.stderr)
         print("%s: %s\n" % (type.__name__, str(value)), file=sys.stderr)
-        self(self.wrap_raw_frames(self.module.inspect.getinnerframes(tb)))
+        self(frames)
 
     def wrap_sys_excepthook(self):
         m = self.module
