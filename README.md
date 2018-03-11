@@ -17,6 +17,7 @@ Allow to embed ipython/bpython or the builtin python shell in your projects
   - `removepry`: Remove current breakpoint from file
   - `showsource`: show python source of object
   - `editfile`: open editor at current breakpoint
+  - `ls`: show properties/methods/local variables, can be also called on objects
 
 ## USAGE
 
