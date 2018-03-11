@@ -1,5 +1,6 @@
 from __future__ import print_function
 import code
+import types
 import inspect
 import sys
 import tempfile
@@ -60,28 +61,66 @@ except ImportError:
                 def active_frame(self):
                     return self.frames[self.frame_offset]
 
+                def build_terminal_list(self, list, term_width=80):
+                    line = " "
+                    for name in sorted(list):
+                        if len(line + name) > term_width:
+                            yield line
+                            line = " "
+                        line += " %s" % name
+                    if line != " ":
+                        yield line
+
                 @line_magic("ls")
                 def ls(self, query):
                     """
-                    Show local variables/methods
+                    Show local variables/methods/class properties
                     """
-                    print("local variables:", file=sys.stderr)
-                    width = terminal_size()[0]
-                    line = " "
                     lines = []
-                    for name in self.active_frame.locals.keys():
-                        if len(line + name) > width:
-                            lines.append(line)
-                            line = " "
-                        line += " %s" % name
-                    page.page("\n".join(lines) + line)
+                    width = terminal_size()[0]
+
+                    methods = []
+                    properties = []
+                    has_query = True
+
+                    that = self.shell.user_ns.get(query, None)
+
+                    if that is None:
+                        that = self.active_frame.locals.get("self", [])
+                        has_query = False
+
+                    # apparently there is no better way to check if the caller
+                    # is a method
+                    for attr in dir(that):
+                        if isinstance(getattr(that, attr), types.MethodType):
+                            methods.append(attr)
+                        else:
+                            properties.append(attr)
+
+                    if len(methods) > 0:
+                        lines.append("local methods:")
+                        lines.extend(self.build_terminal_list(methods, width))
+
+                    if len(properties) > 0:
+                        lines.append("properties")
+                        props = self.build_terminal_list(
+                            properties, width)
+                        lines.extend(props)
+
+                    if not has_query:
+                        lines.append("local variables:")
+                        local_vars = self.build_terminal_list(
+                            self.active_frame.locals.keys(), width)
+                        lines.extend(local_vars)
+
+                    page.page("\n".join(lines))
 
                 @line_magic("editfile")
                 def editfile(self, query):
                     """
                     open current breakpoint in editor.
                     """
-                    ipython.get_ipython().hooks.editor(
+                    IPython.get_ipython().hooks.editor(
                         self.active_frame.filename,
                         linenum=self.active_frame.lineno)
 

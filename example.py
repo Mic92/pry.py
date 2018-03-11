@@ -3,17 +3,17 @@ import xml.etree.ElementTree as ET
 
 
 class Obj():
-    attr = 1
+    def __init__(self):
+        self.attr = 1
 
-
-def baz():
-    c = 1
-    pry()
+    def baz(self):
+        c = 1
+        pry()
 
 
 def bar():
     b = 1
-    baz()
+    Obj().baz()
     with pry():
          raise Exception("foo")
 
