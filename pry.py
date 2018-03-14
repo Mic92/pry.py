@@ -92,7 +92,11 @@ except ImportError:
                     # apparently there is no better way to check if the caller
                     # is a method
                     for attr in dir(that):
-                        if isinstance(getattr(that, attr), types.MethodType):
+                        try:
+                            value = getattr(that, attr)
+                        except Exception:
+                            continue
+                        if isinstance(value, types.MethodType):
                             methods.append(attr)
                         else:
                             properties.append(attr)
