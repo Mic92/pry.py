@@ -268,10 +268,10 @@ class Pry():
         if tb is None:
             return
         frames = self.wrap_raw_frames(self.module.inspect.getinnerframes(tb))
-        for frame in frames:
+        for frame in frames[:-1]:
             print(self.get_context(frame), file=sys.stderr)
         print("%s: %s\n" % (type.__name__, str(value)), file=sys.stderr)
-        self(frames)
+        self(list(reversed(frames)))
 
     def wrap_sys_excepthook(self):
         m = self.module
