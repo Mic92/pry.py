@@ -123,7 +123,7 @@ except ImportError:
                     """
                     open current breakpoint in editor.
                     """
-                    IPython.get_ipython().hooks.editor(
+                    self.shell.hooks.editor(
                         self.active_frame.filename,
                         linenum=self.active_frame.lineno)
 
