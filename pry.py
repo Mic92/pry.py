@@ -107,8 +107,7 @@ except ImportError:
 
                     if len(properties) > 0:
                         lines.append("properties")
-                        props = self.build_terminal_list(
-                            properties, width)
+                        props = self.build_terminal_list(properties, width)
                         lines.extend(props)
 
                     if not has_query:
@@ -160,8 +159,9 @@ except ImportError:
                 def update_context(self):
                     print(get_context(self.active_frame), file=sys.stderr)
                     # hacky
-                    self.shell.user_ns.update(self.active_frame.locals)
-                    self.shell.user_module.__dict__ = self.active_frame.globals
+                    scope = self.active_frame.globals.copy()
+                    scope.update(self.active_frame.globals)
+                    self.shell.user_ns.update(scope)
 
                 @line_magic("up")
                 def up(self, query):
@@ -225,13 +225,13 @@ class Frame():
     Abstraction around old python traceback api
     """
 
-    def __init__(self, *args):
-        self.frame = args[0]
-        self.filename = args[1]
-        self.lineno = args[2]
-        self.function = args[3]
-        self.lines = args[4]
-        self.index = args[5]
+    def __init__(self, *raw_frame):
+        self.frame = raw_frame[0]
+        self.filename = raw_frame[1]
+        self.lineno = raw_frame[2]
+        self.function = raw_frame[3]
+        self.lines = raw_frame[4]
+        self.index = raw_frame[5]
         self.locals = self.frame.f_locals
         self.globals = self.frame.f_globals
 
@@ -337,12 +337,11 @@ class Pry():
             globals().update(active_frame.globals)
             m.bpython.embed(active_frame.locals.copy(), banner=context)
         if m.has_ipython:
-            m.IPython.embed(
-                user_ns=active_frame.locals.copy(),
-                global_ns=active_frame.globals.copy(),
-                banner1=context,
-                config=m.ipython_config,
-                frames=frames)
+            shell = m.IPython.terminal.embed.InteractiveShellEmbed(config=m.ipython_config, frames=frames)
+            scope = active_frame.globals.copy()
+            scope.update(active_frame.locals)
+            print(context.rstrip())
+            shell.mainloop(local_ns=scope)
         else:
             if m.has_readline:
                 m.readline.parse_and_bind("tab: complete")
@@ -353,9 +352,9 @@ class Pry():
         if frames is None:
             frames = self.module.inspect.getouterframes(
                 self.module.inspect.currentframe())
+            frames = self.wrap_raw_frames(frames)
             if len(frames) > 1:
                 frames = frames[1:]
-            frames = self.wrap_raw_frames(frames)
 
         context = self.get_context(frames[0])
         self.fix_tty()
