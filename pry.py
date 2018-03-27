@@ -160,7 +160,7 @@ except ImportError:
                     print(get_context(self.active_frame), file=sys.stderr)
                     # hacky
                     scope = self.active_frame.globals.copy()
-                    scope.update(self.active_frame.globals)
+                    scope.update(self.active_frame.locals)
                     self.shell.user_ns.update(scope)
 
                 @line_magic("up")
