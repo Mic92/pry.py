@@ -1,14 +1,29 @@
 #!/usr/bin/env python
 
-from distutils.core import setup
+from setuptools import find_packages, setup
+import pry
+
+CLASSIFIERS = [
+      "Development Status :: 5 - Production/Stable",
+      "Intended Audience :: Developers",
+      "License :: OSI Approved :: MIT License",
+      "Natural Language :: English",
+      "Operating System :: OS Independent",
+      "Programming Language :: Python",
+      "Programming Language :: Python :: 3",
+      "Topic :: Software Development :: Libraries :: Python Modules",
+      "Topic :: Software Development :: Debuggers",
+]
 
 setup(
-    name='Pry',
-    version='0.0.1',
+    name='pry.py',
+    version=pry.module.VERSION,
+    classifiers=CLASSIFIERS,
     description='Pry ruby-like interactive shell, written in Python',
-    author='Jörg Thalheim',
+    author='Joerg Thalheim',
     author_email='joerg@thaleheim.io',
     url='https://github.com/Mic92/pry.py',
-    py_modules=['pry'],
+    license="MIT License",
+    packages=find_packages(),
     zip_safe=True,
 )

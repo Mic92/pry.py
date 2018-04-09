@@ -8,7 +8,9 @@ import re
 import shutil
 import struct
 import fcntl
-from bdb import BdbQuit
+
+
+VERSION = "0.1.0"
 
 try:
     import termios
