@@ -6,6 +6,24 @@ Allow to embed ipython/bpython or the builtin python shell in your projects
 
 ![Example](http://i.imgur.com/ey1vF8O.png)
 
+## INSTALL
+
+```
+pip install pry.py
+```
+
+or
+
+```
+$ curl https://raw.githubusercontent.com/Mic92/pry.py/master/pry.py > pry.py
+```
+
+or:
+
+```
+pip install git+https://github.com/Mic92/pry.py
+```
+
 ## FEATURES
 
 - works with python2.7/python3
@@ -33,16 +51,4 @@ def faulty():
     raise Exception("foo")
 with pry:
     faulty()
-```
-
-## INSTALL
-
-```
-$ curl https://raw.githubusercontent.com/Mic92/pry.py/master/pry.py > pry.py
-```
-
-or:
-
-```
-pip install git+https://github.com/Mic92/pry.py
 ```
