@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from setuptools import find_packages, setup
+from setuptools import setup
 import pry
 
 CLASSIFIERS = [
@@ -24,6 +24,6 @@ setup(
     author_email='joerg@thaleheim.io',
     url='https://github.com/Mic92/pry.py',
     license="MIT License",
-    packages=find_packages(),
+    py_modules=['pry'],
     zip_safe=True,
 )
